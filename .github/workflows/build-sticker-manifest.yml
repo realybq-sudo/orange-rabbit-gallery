@@ -1,0 +1,75 @@
+
+name: Build sticker manifest
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "stickers/**"
+      - ".github/workflows/build-sticker-manifest.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Generate sticker manifest
+        run: |
+          node <<'NODE'
+          const fs = require('fs');
+          const path = require('path');
+
+          const dir = 'stickers';
+          const extensions = new Set([
+            '.png', '.jpg', '.jpeg', '.webp', '.gif'
+          ]);
+
+          const files = fs.readdirSync(dir)
+            .filter(name =>
+              extensions.has(path.extname(name).toLowerCase())
+            )
+            .sort((a, b) => a.localeCompare(b, 'en'));
+
+          const stickers = files.map(file => {
+            const id = path.basename(file, path.extname(file))
+              .toLowerCase()
+              .replace(/[^a-z0-9_-]+/g, '-')
+              .replace(/^-+|-+$/g, '');
+
+            return {
+              id,
+              filename: file,
+              url: `https://raw.githubusercontent.com/${process.env.GITHUB_REPOSITORY}/${process.env.GITHUB_REF_NAME}/stickers/${encodeURIComponent(file)}`,
+              name: path.basename(file, path.extname(file)),
+              description: ''
+            };
+          });
+
+          fs.writeFileSync(
+            'sticker-manifest.json',
+            JSON.stringify({
+              generatedAt: new Date().toISOString(),
+              count: stickers.length,
+              stickers
+            }, null, 2) + '\n'
+          );
+          NODE
+
+      - name: Commit manifest if changed
+        run: |
+          if git diff --quiet -- sticker-manifest.json; then
+            echo "Manifest is already up to date."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add sticker-manifest.json
+          git commit -m "chore: update sticker manifest"
+          git push
