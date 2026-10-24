@@ -61,15 +61,17 @@ jobs:
           );
           NODE
 
+
       - name: Commit manifest if changed
         run: |
-          if git diff --quiet -- sticker-manifest.json; then
+          git add sticker-manifest.json
+
+          if git diff --cached --quiet -- sticker-manifest.json; then
             echo "Manifest is already up to date."
             exit 0
           fi
 
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add sticker-manifest.json
           git commit -m "chore: update sticker manifest"
           git push
